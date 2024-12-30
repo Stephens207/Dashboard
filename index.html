@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Persistent Dynamic Table with LocalStorage</title>
+  <title>Persistent Dynamic Table with Internal Storage</title>
   <style>
     table {
       width: 100%;
@@ -26,10 +26,20 @@
     input {
       margin-right: 10px;
     }
+    button.delete-btn {
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    button.delete-btn:hover {
+      background-color: #e60000;
+    }
   </style>
 </head>
 <body>
-  <h1>Persistent Dynamic Table with Auto-Sort and Archive</h1>
+  <h1>Dynamic Table with Internal Storage</h1>
 
   <!-- Input Form -->
   <form id="data-form">
@@ -45,6 +55,7 @@
         <th>ID</th>
         <th>Name</th>
         <th>Date Added</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -54,38 +65,31 @@
 
   <script>
     let rowId = 1; // Initialize row ID
+    let tableData = []; // Internal storage to hold the table data
 
-    // Function to save data to localStorage
-    function saveToLocalStorage() {
-      const table = document.getElementById('data-table');
-      const rows = Array.from(table.getElementsByTagName('tbody')[0].getElementsByTagName('tr'));
-
-      const data = rows.map(row => ({
-        id: row.cells[0].textContent,
-        name: row.cells[1].textContent,
-        date: row.cells[2].textContent,
-        archived: row.classList.contains('archived') // Save archived state
-      }));
-
-      localStorage.setItem('tableData', JSON.stringify(data));
-    }
-
-    // Function to load data from localStorage
-    function loadFromLocalStorage() {
-      const tableData = JSON.parse(localStorage.getItem('tableData') || '[]');
-      const table = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+    // Function to render the table from internal storage
+    function renderTable() {
+      const tableBody = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+      tableBody.innerHTML = ''; // Clear existing rows
 
       tableData.forEach(rowData => {
-        const newRow = table.insertRow();
+        const newRow = tableBody.insertRow();
         newRow.innerHTML = `
           <td>${rowData.id}</td>
           <td>${rowData.name}</td>
           <td>${rowData.date}</td>
+          <td><button class="delete-btn">Delete</button></td>
         `;
+
+        // Mark row as archived if applicable
         if (rowData.archived) {
           newRow.classList.add('archived');
         }
-        rowId = Math.max(rowId, parseInt(rowData.id) + 1); // Update rowId
+
+        // Add delete button functionality
+        newRow.querySelector('.delete-btn').addEventListener('click', () => {
+          deleteRow(rowData.id);
+        });
       });
     }
 
@@ -103,62 +107,45 @@
         return;
       }
 
-      // Add the new row to the table
-      const table = document.getElementById('data-table').getElementsByTagName('tbody')[0];
-      const newRow = table.insertRow();
-      newRow.innerHTML = `
-        <td>${rowId++}</td>
-        <td>${name}</td>
-        <td>${date}</td>
-      `;
+      // Add the new row to the internal storage
+      tableData.push({ id: rowId++, name, date, archived: false });
 
       // Clear the input fields
       document.getElementById('name').value = '';
       document.getElementById('date').value = '';
 
-      // Save data to localStorage and sort the table
-      saveToLocalStorage();
+      // Render the updated table
+      renderTable();
       sortTableByDate();
     });
 
+    // Function to delete a row by ID
+    function deleteRow(id) {
+      tableData = tableData.filter(row => row.id !== id); // Remove the row from internal storage
+      renderTable(); // Re-render the table
+    }
+
     // Function to archive rows older than 15 days
     function autoArchive() {
-      const table = document.getElementById('data-table');
-      const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
       const currentDate = new Date();
 
-      for (let row of rows) {
-        const dateCell = row.cells[2]; // The "Date Added" column
-        const rowDate = new Date(dateCell.textContent);
-
-        // Calculate the difference in days between the current date and the row date
+      tableData.forEach(row => {
+        const rowDate = new Date(row.date);
         const diffInTime = currentDate - rowDate;
         const diffInDays = diffInTime / (1000 * 3600 * 24);
 
         if (diffInDays > 15) {
-          row.classList.add('archived'); // Mark as archived
+          row.archived = true; // Mark as archived
         }
-      }
+      });
 
-      // Save the updated archive state to localStorage
-      saveToLocalStorage();
+      renderTable();
     }
 
     // Function to sort the table by the "Date Added" column
     function sortTableByDate() {
-      const table = document.getElementById('data-table');
-      const tbody = table.getElementsByTagName('tbody')[0];
-      const rows = Array.from(tbody.getElementsByTagName('tr'));
-
-      // Sort rows by the date column (index 2)
-      rows.sort((a, b) => {
-        const dateA = new Date(a.cells[2].textContent);
-        const dateB = new Date(b.cells[2].textContent);
-        return dateA - dateB; // Sort ascending by date
-      });
-
-      // Re-append rows in the correct order
-      rows.forEach(row => tbody.appendChild(row));
+      tableData.sort((a, b) => new Date(a.date) - new Date(b.date)); // Sort ascending by date
+      renderTable(); // Re-render the table
     }
 
     // Auto-archive rows and sort the table every 10 seconds
@@ -167,9 +154,9 @@
       sortTableByDate();
     }, 10000);
 
-    // Initial load from localStorage and setup
+    // Initial setup
     window.onload = () => {
-      loadFromLocalStorage();
+      renderTable();
       autoArchive();
       sortTableByDate();
     };
