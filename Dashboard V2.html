@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Persistent Dynamic Table with LocalStorage</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    .archived {
+      background-color: #f9d6d5;
+      text-decoration: line-through;
+    }
+    form {
+      margin-bottom: 20px;
+    }
+    input {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Persistent Dynamic Table with Auto-Sort and Archive</h1>
+
+  <!-- Input Form -->
+  <form id="data-form">
+    <input type="text" id="name" placeholder="Enter Name" required>
+    <input type="date" id="date" required>
+    <button type="submit">Add to Table</button>
+  </form>
+
+  <!-- Data Table -->
+  <table id="data-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Date Added</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Rows will be dynamically added here -->
+    </tbody>
+  </table>
+
+  <script>
+    let rowId = 1; // Initialize row ID
+
+    // Function to save data to localStorage
+    function saveToLocalStorage() {
+      const table = document.getElementById('data-table');
+      const rows = Array.from(table.getElementsByTagName('tbody')[0].getElementsByTagName('tr'));
+
+      const data = rows.map(row => ({
+        id: row.cells[0].textContent,
+        name: row.cells[1].textContent,
+        date: row.cells[2].textContent,
+        archived: row.classList.contains('archived') // Save archived state
+      }));
+
+      localStorage.setItem('tableData', JSON.stringify(data));
+    }
+
+    // Function to load data from localStorage
+    function loadFromLocalStorage() {
+      const tableData = JSON.parse(localStorage.getItem('tableData') || '[]');
+      const table = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+
+      tableData.forEach(rowData => {
+        const newRow = table.insertRow();
+        newRow.innerHTML = `
+          <td>${rowData.id}</td>
+          <td>${rowData.name}</td>
+          <td>${rowData.date}</td>
+        `;
+        if (rowData.archived) {
+          newRow.classList.add('archived');
+        }
+        rowId = Math.max(rowId, parseInt(rowData.id) + 1); // Update rowId
+      });
+    }
+
+    // Function to handle form submission
+    document.getElementById('data-form').addEventListener('submit', function(event) {
+      event.preventDefault(); // Prevent form from reloading the page
+
+      // Get the input values
+      const name = document.getElementById('name').value;
+      const date = document.getElementById('date').value;
+
+      // Validate inputs
+      if (name === '' || date === '') {
+        alert('Please fill out all fields!');
+        return;
+      }
+
+      // Add the new row to the table
+      const table = document.getElementById('data-table').getElementsByTagName('tbody')[0];
+      const newRow = table.insertRow();
+      newRow.innerHTML = `
+        <td>${rowId++}</td>
+        <td>${name}</td>
+        <td>${date}</td>
+      `;
+
+      // Clear the input fields
+      document.getElementById('name').value = '';
+      document.getElementById('date').value = '';
+
+      // Save data to localStorage and sort the table
+      saveToLocalStorage();
+      sortTableByDate();
+    });
+
+    // Function to archive rows older than 15 days
+    function autoArchive() {
+      const table = document.getElementById('data-table');
+      const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      const currentDate = new Date();
+
+      for (let row of rows) {
+        const dateCell = row.cells[2]; // The "Date Added" column
+        const rowDate = new Date(dateCell.textContent);
+
+        // Calculate the difference in days between the current date and the row date
+        const diffInTime = currentDate - rowDate;
+        const diffInDays = diffInTime / (1000 * 3600 * 24);
+
+        if (diffInDays > 15) {
+          row.classList.add('archived'); // Mark as archived
+        }
+      }
+
+      // Save the updated archive state to localStorage
+      saveToLocalStorage();
+    }
+
+    // Function to sort the table by the "Date Added" column
+    function sortTableByDate() {
+      const table = document.getElementById('data-table');
+      const tbody = table.getElementsByTagName('tbody')[0];
+      const rows = Array.from(tbody.getElementsByTagName('tr'));
+
+      // Sort rows by the date column (index 2)
+      rows.sort((a, b) => {
+        const dateA = new Date(a.cells[2].textContent);
+        const dateB = new Date(b.cells[2].textContent);
+        return dateA - dateB; // Sort ascending by date
+      });
+
+      // Re-append rows in the correct order
+      rows.forEach(row => tbody.appendChild(row));
+    }
+
+    // Auto-archive rows and sort the table every 10 seconds
+    setInterval(() => {
+      autoArchive();
+      sortTableByDate();
+    }, 10000);
+
+    // Initial load from localStorage and setup
+    window.onload = () => {
+      loadFromLocalStorage();
+      autoArchive();
+      sortTableByDate();
+    };
+  </script>
+</body>
+</html>
